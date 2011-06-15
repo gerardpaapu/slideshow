@@ -47,17 +47,18 @@ var Display;
             dest   = this.context.getImageData(0, 0, this.width, this.height),
             len    = dest.data.length,
             _width = this.width * 4,
-            i, y, x, report;
+            i, y, x, left, right;
 
         for (i = 0; i < len; i++) {
             // read the alpha channel of the mask
             y = Math.floor(i / _width) / this.height; 
             x = (i % _width) / _width;
-
-            if (mask(x, y, t)) {
-                dest.data[i] = source.data[i++]; // copy red
-                dest.data[i] = source.data[i++]; // copy green
-                dest.data[i] = source.data[i++]; // copy blue
+            left = Math.max(0, Math.min(1, mask(x, y, t)));
+            right = 1 - left;
+            if (left) {
+                dest.data[i] = left * source.data[i] + right * dest.data[i++]; // copy red
+                dest.data[i] = left * source.data[i] + right * dest.data[i++]; // copy red
+                dest.data[i] = left * source.data[i] + right * dest.data[i++]; // copy red
                 //                                  skip alpha
             } else {
                 i += 3;
