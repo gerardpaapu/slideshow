@@ -1,17 +1,15 @@
 /*globals Display: false */
 
-var atan, hyp, point_height, star_wipe;
+var atan, hyp, point_height, star_wipe, twist_wipe, blinds, circle_blinds, random_wipe, sqrt_2;
+
+sqrt_2 = Math.sqrt(2);
 
 atan = function(y, x) {
-    var key = y + ', ' + x;
-    atan.cache = atan.cache || {};
-    return atan.cache[key] || (atan.cache[key] = Math.atan2(y, x) + Math.PI);
+    return Math.atan2(y, x) + Math.PI;
 };
 
 hyp = function(x, y) {
-    var key = y + ', ' + x;
-    hyp.cache = hyp.cache || {};
-    return hyp.cache[key] || (hyp.cache[key] = Math.sqrt(x * x + y * y));
+    return Math.sqrt(x * x + y * y);
 };
 
 point_height = function(x, y) {
