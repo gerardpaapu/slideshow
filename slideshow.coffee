@@ -19,12 +19,31 @@ getContext = (w, h) ->
     canvas.height = h
     canvas.getContext '2d'
 
-class Loader
+handlers = (instance, key) ->
+    instance.__handlers__ ?= {}
+    instance.__handlers__[type] ?= []
+
+class Events
+    bind: (type, callback) ->
+        handlers(@, type).unshift callback
+
+    unbind: (type, callback) ->
+        remove handlers(@, type), callback
+
+    trigger: (type, args...) ->
+        for handler in handlers(@, type)
+            try handler.apply(@, args)
+
+class Loader extends Events
     initialize: (options) ->
         @options = merge @options, options
         @cache = {}
         @loaded = []
-        @waiting = slice.call(@options.urls)
+        @waiting = slice.call @options.urls
+
+        @bind 'complete', @options.onComplete
+        @bind 'progress', @options.onProgress
+
         @loadImages()
 
     cache: null
@@ -49,25 +68,29 @@ class Loader
         @loadImage url for url in @waiting
 
     onProgress: (url, data) ->
-        @cache[url] = data 
-        remove(@waiting, url)
+        @cache[url] = data
+        remove @waiting, url
         @loaded.push(url)
 
-        @options.onProgress.call(@, url, data, @)
+        @trigger 'progress', url, data, @
 
         unless @waiting.length > 0
             @onComplete()
-    
-    onComplete: ->
-        @options.onComplete.call(@, @cache, @)
 
-class Animator
+    onComplete: ->
+        @trigger 'complete', @cache, @
+
+class Animator extends Events
     initialize: (options) ->
         @options = merge @options, options
+        @render = @options.render
+        @bind 'cancel', @options.onCancel
+        @bind 'update', @options.onUpdate
+        @bind 'complete', @options.onComplete
 
     cancel: ->
         @stop()
-        @options.onCancel.call(this)
+        @trigger 'cancel'
 
     start: ->
         @start_time = +new Date()
@@ -75,14 +98,17 @@ class Animator
         each_tick = =>
             now = +new Date()
             n = Math.min 1, @duration / now - @start_time
-            @options.render.call(@, n)
-            @options.onUpdate.call(@, n)
+
+            @trigger 'update', @render(n), n, @
 
             unless n < 1
                 @stop()
-                @options.onComplete.call(this)
+                @trigger 'complete', @
 
         @timer = window.setInterval each_tick, @options.step
+
+    stop: ->
+        window.clearInterval @timer
 
     options:
         duration: 1000
