@@ -21,6 +21,11 @@ point_height = function(x, y) {
 
     return root * root;
 };
+
+random_wipe = function (x, y, t) {
+    return 2 * t / (Math.random() + y);
+};
+
 star_wipe = function(x, y, t) {
     var diff_radius, distance, inner_radius, outer_radius, _x, _y;
     _x = 0.5 - x;
@@ -36,6 +41,24 @@ star_wipe = function(x, y, t) {
     }
     diff_radius = outer_radius - inner_radius;
     return distance <= inner_radius + point_height(_x, _y) * diff_radius;
+};
+
+twist_wipe = function (x, y, t) {
+    var _x = 0.5 - x,
+        _y = 0.5 - y,
+        segment = Math.PI / 4,
+        theta = atan(_y, _x),
+        fraction = (theta % segment) / segment;
+
+    return t >= fraction;
+};
+
+circle_blinds = function (x, y, t) {
+    return t - (hyp(0.5 - x, 0.5 - y) % 0.2) * 5;
+};
+
+blinds = function (x, y, t) {
+    return t >= (y % 0.2) * 5;
 };
 
 window.onload = function () {
