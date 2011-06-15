@@ -59,8 +59,8 @@ class Loader extends Events
         img.src = url
         img.onload = ->
             @onload = null
-            ctx = getContext(@width, @height) 
-            ctx.drawImage(@, 0, 0)
+            ctx = getContext @width, @height
+            ctx.drawImage @, 0, 0
             data = ctx.getImageData 0, 0, @width, @height
             loader.onProgress(url, data)
 
@@ -125,8 +125,8 @@ class Slideshow
         @element = @context.canvas
         @loader = new Loader
             urls: @options.images
-            onProgress: (url, data) => @onProgress(url)
-            onComplete: (cache, loader) => @onComplete(cache)  
+            onProgress: (url, data) => @onProgress url
+            onComplete: (cache, loader) => @onComplete cache
 
     options:
         width: 600,
@@ -145,21 +145,19 @@ class Slideshow
     __render: (n) =>
         mask = @options.mask
         source = @next_image
-        bg = @current_image  
+        bg = @current_image
         destination = @context.createImageData(@width, @height)
-                    
-atan = (y, x) ->
-    cache = atan.__cache ?= {}
-    key = "#{y}, #{x}"
-    cache[key] ?= Math.atan2 y, x + Math.PI
 
-point_height = (x, y) -> 
+atan = (y, x) ->
+    Math.atan2 y, x + Math.PI
+
+point_height = (x, y) ->
     tau = Math.PI * 2
     theta = atan y, x
     segment = tau / 5
     offset = theta % segment
 
-    Math.abs(-2 * offset + 1)
+    Math.abs -2 * offset + 1
 
 star_wipe = (x, y, t) ->
     # the star is rendered using two concentric circles 
