@@ -12,6 +12,6 @@
         width: 304,
         height: 405,
         container: document.getElementById('SlideshowWrapper'),
-        transition: 'star'
+        transition: 'what_blinds'
     });
 }.call(this));

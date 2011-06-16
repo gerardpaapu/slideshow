@@ -10,6 +10,19 @@ atan = (y, x) -> inv_tau * atan2(y, x) + Math.PI
 
 hyp  = (x, y) -> sqrt x * x + y * y
 
+shuffle = (arr) ->  
+    splice_random = (arr) ->
+        index = floor(random() * arr.length)
+        item = arr[index]
+        arr.splice(index, 1)
+        item
+
+    _arr = arr.slice()
+
+    splice_random _arr for i in arr
+
+squares = shuffle [0..99] 
+
 @Slideshow.transitions = 
     star: (x, y, t) ->
         x = 0.5 - x
@@ -33,5 +46,13 @@ hyp  = (x, y) -> sqrt x * x + y * y
     
     horz_blinds: (x, y, t) -> t >= 5 * x % 1
 
+    what_blinds: (x, y, t) -> t >= 5 * (sqrt(x * y) % 0.2)
+
     circle_blinds: (x, y, t) -> 
         t >= 5 * hyp(0.5 - x, 0.5 - y) % 1
+
+    squares: (x, y, t) -> 
+        y = floor(y * 10)
+        x = floor(x * 10)
+        i = y * 10 + x
+        t >= squares[i] / 100
