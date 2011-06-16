@@ -1,6 +1,13 @@
 (function() {
-  var Animator, Loader, Slideshow, atan, getContext, merge, point_height, remove, slice, star_wipe;
-  var __slice = Array.prototype.slice, __bind = function(fn, me){ return function(){ return fn.apply(me, arguments); }; };
+  var Animator, Events, Loader, Slideshow, TransitionAnimator, getContext, handlers, merge, remove, slice;
+  var __slice = Array.prototype.slice, __hasProp = Object.prototype.hasOwnProperty, __extends = function(child, parent) {
+    for (var key in parent) { if (__hasProp.call(parent, key)) child[key] = parent[key]; }
+    function ctor() { this.constructor = child; }
+    ctor.prototype = parent.prototype;
+    child.prototype = new ctor;
+    child.__super__ = parent.prototype;
+    return child;
+  }, __bind = function(fn, me){ return function(){ return fn.apply(me, arguments); }; };
   merge = function() {
     var destination, key, source, sources, value, _i, _len;
     sources = 1 <= arguments.length ? __slice.call(arguments, 0) : [];
@@ -29,15 +36,51 @@
     canvas.height = h;
     return canvas.getContext('2d');
   };
+  handlers = function(instance, key) {
+    var _base, _ref, _ref2;
+        if ((_ref = instance.__handlers__) != null) {
+      _ref;
+    } else {
+      instance.__handlers__ = {};
+    };
+    return (_ref2 = (_base = instance.__handlers__)[key]) != null ? _ref2 : _base[key] = [];
+  };
+  Events = (function() {
+    function Events() {}
+    Events.prototype.bind = function(type, callback) {
+      return handlers(this, type).unshift(callback);
+    };
+    Events.prototype.unbind = function(type, callback) {
+      return remove(handlers(this, type), callback);
+    };
+    Events.prototype.trigger = function() {
+      var args, handler, type, _i, _len, _ref, _results;
+      type = arguments[0], args = 2 <= arguments.length ? __slice.call(arguments, 1) : [];
+      _ref = handlers(this, type);
+      _results = [];
+      for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+        handler = _ref[_i];
+        _results.push((function() {
+          try {
+            return handler.apply(this, args);
+          } catch (_e) {}
+        }).call(this));
+      }
+      return _results;
+    };
+    return Events;
+  })();
   Loader = (function() {
-    function Loader() {}
-    Loader.prototype.initialize = function(options) {
+    __extends(Loader, Events);
+    function Loader(options) {
       this.options = merge(this.options, options);
       this.cache = {};
       this.loaded = [];
       this.waiting = slice.call(this.options.urls);
-      return this.loadImages();
-    };
+      this.bind('complete', this.options.onComplete);
+      this.bind('progress', this.options.onProgress);
+      this.loadImages();
+    }
     Loader.prototype.cache = null;
     Loader.prototype.options = {
       urls: [],
@@ -59,11 +102,13 @@
       };
     };
     Loader.prototype.loadImages = function() {
-      var url, _i, _len, _ref, _results;
-      _ref = this.waiting;
+      var images, url, _i, _len, _ref, _ref2, _results;
+      images = 1 <= arguments.length ? __slice.call(arguments, 0) : [];
+      (_ref = this.waiting).push.apply(_ref, images);
+      _ref2 = this.waiting;
       _results = [];
-      for (_i = 0, _len = _ref.length; _i < _len; _i++) {
-        url = _ref[_i];
+      for (_i = 0, _len = _ref2.length; _i < _len; _i++) {
+        url = _ref2[_i];
         _results.push(this.loadImage(url));
       }
       return _results;
@@ -72,118 +117,173 @@
       this.cache[url] = data;
       remove(this.waiting, url);
       this.loaded.push(url);
-      this.options.onProgress.call(this, url, data, this);
+      this.trigger('progress', url, data, this);
       if (!(this.waiting.length > 0)) {
         return this.onComplete();
       }
     };
     Loader.prototype.onComplete = function() {
-      return this.options.onComplete.call(this, this.cache, this);
+      return this.trigger('complete', this.cache, this);
     };
     return Loader;
   })();
   Animator = (function() {
-    function Animator() {}
-    Animator.prototype.initialize = function(options) {
-      return this.options = merge(this.options, options);
-    };
+    __extends(Animator, Events);
+    function Animator(options) {
+      this.options = merge(this.options, options);
+      if (this.options.render) {
+        this.render = this.options.render;
+      }
+      this.bind('cancel', this.options.onCancel);
+      this.bind('update', this.options.onUpdate);
+      this.bind('complete', this.options.onComplete);
+    }
     Animator.prototype.cancel = function() {
       this.stop();
-      return this.options.onCancel.call(this);
+      return this.trigger('cancel');
     };
     Animator.prototype.start = function() {
       var each_tick;
       this.start_time = +new Date();
       each_tick = __bind(function() {
-        var n, now;
+        var n, now, t;
         now = +new Date();
-        n = Math.min(1, this.duration / now - this.start_time);
-        this.options.render.call(this, n);
-        this.options.onUpdate.call(this, n);
+        t = (now - this.start_time) / this.options.duration;
+        n = Math.max(0, Math.min(1, t));
+        this.trigger('update', this.render(n), n, this);
         if (!(n < 1)) {
           this.stop();
-          return this.options.onComplete.call(this);
+          return this.trigger('complete', this);
         }
       }, this);
       return this.timer = window.setInterval(each_tick, this.options.step);
     };
+    Animator.prototype.stop = function() {
+      return window.clearInterval(this.timer);
+    };
     Animator.prototype.options = {
       duration: 1000,
       step: 50,
-      render: function(n) {},
+      render: null,
       onComplete: function() {},
       onUpdate: function() {},
       onCancel: function() {}
     };
     return Animator;
   })();
-  Slideshow = (function() {
-    function Slideshow() {
-      this.__render = __bind(this.__render, this);
+  TransitionAnimator = (function() {
+    __extends(TransitionAnimator, Animator);
+    function TransitionAnimator(options) {
+      TransitionAnimator.__super__.constructor.call(this, options);
+      this.context = this.options.context;
     }
-    Slideshow.prototype.initialize = function(options) {
+    TransitionAnimator.prototype.start = function(left, right) {
+      this.left = left;
+      this.right = right;
+      return TransitionAnimator.__super__.start.call(this);
+    };
+    TransitionAnimator.prototype.render = function(t) {
+      var data, destination, filter, height, i, inv_height, inv_width, j, length, same_height, same_width, source, width, x, y, _ref, _ref2, _ref3;
+      _ref = this.context.canvas, width = _ref.width, height = _ref.height;
+      if (!((this.left != null) && (this.right != null))) {
+        throw new Error();
+      }
+      same_width = (width === (_ref2 = this.left.width) && _ref2 === this.right.width);
+      same_height = (height === (_ref3 = this.left.height) && _ref3 === this.right.height);
+      if (!(same_width && same_height)) {
+        throw new Error();
+      }
+      destination = this.context.createImageData(width, height);
+      data = destination.data;
+      length = data.length / 4;
+      inv_width = 1 / width;
+      inv_height = 1 / height;
+      filter = this.options.transition;
+      for (i = 0; 0 <= length ? i <= length : i >= length; 0 <= length ? i++ : i--) {
+        y = Math.floor(i * inv_width) * inv_height;
+        x = (i % width) * inv_width;
+        source = t === 1 || filter(x, y, t) ? this.right : this.left;
+        j = i * 4;
+        data[j + 0] = source.data[j + 0];
+        data[j + 1] = source.data[j + 1];
+        data[j + 2] = source.data[j + 2];
+        data[j + 3] = 255;
+      }
+      return this.context.putImageData(destination, 0, 0);
+    };
+    TransitionAnimator.prototype.stop = function() {
+      this.left = this.right = null;
+      return TransitionAnimator.__super__.stop.call(this);
+    };
+    return TransitionAnimator;
+  })();
+  Slideshow = (function() {
+    function Slideshow(options) {
       this.options = merge(this.options, options);
       this.context = getContext(this.options.width, this.options.height);
       this.element = this.context.canvas;
-      return this.loader = new Loader({
+      this.loader = new Loader({
         urls: this.options.images,
         onProgress: __bind(function(url, data) {
-          return this.onProgress(url);
-        }, this),
-        onComplete: __bind(function(cache, loader) {
-          return this.onComplete(cache);
+          return this.onProgress(url, data);
         }, this)
       });
+      this.animator = new TransitionAnimator({
+        context: this.context,
+        transition: Slideshow.transitions[this.options.transition]
+      });
+      this.options.container.appendChild(this.element);
+    }
+    Slideshow.prototype.onProgress = function(url, data) {
+      if (this.loader.loaded.length === 1) {
+        this.context.putImageData(data, 0, 0);
+        this.current = url;
+        return this.start();
+      }
+    };
+    Slideshow.prototype.start = function() {
+      return this.timer = window.setInterval((__bind(function() {
+        return this.showNextSlide();
+      }, this)), this.options.interval);
+    };
+    Slideshow.prototype.stop = function() {
+      window.clearInterval(this.timer);
+      return this.timer = null;
+    };
+    Slideshow.prototype.timer = null;
+    Slideshow.prototype.showNextSlide = function() {
+      return this.showSlide(this.getNextSlide());
+    };
+    Slideshow.prototype.showSlide = function(url) {
+      var cache, prev;
+      prev = this.current;
+      cache = this.loader.cache;
+      this.current = url;
+      return this.animator.start(cache[prev], cache[this.current]);
+    };
+    Slideshow.prototype.getNextSlide = function() {
+      var images, index;
+      images = this.loader.loaded;
+      index = images.indexOf(this.current);
+      if (index === -1) {
+        throw new Error;
+      }
+      index = (index + 1) % images.length;
+      return images[index];
     };
     Slideshow.prototype.options = {
       width: 600,
       height: 400,
-      mask: function(x, y, t) {
-        var _x, _y;
-        _x = 0.5 - x;
-        _y = 0.5 - y;
-        return t > Math.sqrt(_x * _x + _y * _y);
+      interval: 4000,
+      images: [],
+      transition: 'random_vert'
+    };
+    Slideshow.transitions = {
+      random_vert: function(x, y, t) {
+        return t >= (Math.random() + y) / 2;
       }
-    };
-    Slideshow.prototype.drawSlide = function() {
-      return new Animator({
-        render: __bind(function(n) {}, this)
-      });
-    };
-    Slideshow.prototype.__render = function(n) {
-      var bg, destination, mask, source;
-      mask = this.options.mask;
-      source = this.next_image;
-      bg = this.current_image;
-      return destination = this.context.createImageData(this.width, this.height);
     };
     return Slideshow;
   })();
-  atan = function(y, x) {
-    return Math.atan2(y, x) + Math.PI;
-  };
-  point_height = function(x, y) {
-    var offset, segment, tau, theta;
-    tau = Math.PI * 2;
-    theta = atan(y, x);
-    segment = tau / 5;
-    offset = theta % segment;
-    return Math.abs(-2 * offset + 1);
-  };
-  star_wipe = function(x, y, t) {
-    var diff_radius, distance, inner_radius, outer_radius, _x, _y;
-    _x = 0.5 - x;
-    _y = 0.5 - y;
-    inner_radius = t;
-    outer_radius = inner_radius * 1.5;
-    distance = Math.sqrt(_x * _x + _y * _y);
-    if (distance < inner_radius) {
-      return true;
-    }
-    if (distance > outer_radius) {
-      return false;
-    }
-    diff_radius = outer_radius - inner_radius;
-    return distance <= inner_radius + point_height(_x, _y) * diff_radius;
-  };
+  this.Slideshow = Slideshow;
 }).call(this);

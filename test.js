@@ -1,112 +1,17 @@
-/*globals Display: false */
-
-var atan, hyp, point_height, star_wipe, twist_wipe, blinds, circle_blinds, random_wipe, sqrt_2;
-
-sqrt_2 = Math.sqrt(2);
-
-atan = function(y, x) {
-    return Math.atan2(y, x) + Math.PI;
-};
-
-hyp = function(x, y) {
-    return Math.sqrt(x * x + y * y);
-};
-
-point_height = function(x, y) {
-    var tau = Math.PI * 2,
-        theta = atan(y, x),
-        segment = tau / 5,
-        offset = theta % segment,
-        root = 2 * (offset - 0.5);
-
-    return root * root;
-};
-
-random_wipe = function (x, y, t) {
-    return 2 * t / (Math.random() + y);
-};
-
-star_wipe = function(x, y, t) {
-    var diff_radius, distance, inner_radius, outer_radius, _x, _y;
-    _x = 0.5 - x;
-    _y = 0.5 - y;
-    inner_radius = t;
-    outer_radius = inner_radius * 1.7;
-    distance = hyp(_x, _y);
-    if (distance < inner_radius) {
-        return true;
-    }
-    if (distance > outer_radius) {
-        return false;
-    }
-    diff_radius = outer_radius - inner_radius;
-    return distance <= inner_radius + point_height(_x, _y) * diff_radius;
-};
-
-twist_wipe = function (x, y, t) {
-    var _x = 0.5 - x,
-        _y = 0.5 - y,
-        segment = Math.PI / 4,
-        theta = atan(_y, _x),
-        fraction = (theta % segment) / segment;
-
-    return t >= fraction;
-};
-
-circle_blinds = function (x, y, t) {
-    return t - (hyp(0.5 - x, 0.5 - y) % 0.2) * 5;
-};
-
-blinds = function (x, y, t) {
-    return t >= (y % 0.2) * 5;
-};
-
-window.onload = function () {
-    new Display({
-        width: 400,
-        height: 533,
-
-        images: {
-            luigi: "luigi.jpg",
-            baby: "baby.jpg"
-        },
-
-        onLoad: function (display) {
-            var start_animating, duration, step, iris_out, image;
-
-            display.draw('baby', 0, 0);
-            document.getElementById('Container').appendChild(this.canvas);
-
-            duration = 1000;
-            step = 1000 / 60 | 0;
-         
-            iris_out = function (x, y, t) {
-                x = 0.5 - x;
-                y = 0.5 - y;
-                return t > Math.sqrt(x * x + y * y);
-            };
-
-            start_animating = function () {
-                var timer, each_frame, start_time;
-                image = image === 'luigi' ? 'baby' : 'luigi';
-                start_time = +new Date();
-
-                each_frame = function  () {
-                    var now = +new Date(),
-                    n = now - start_time,
-                    t = Math.min(1, n / duration);
-
-                    display.drawWithMask(image, star_wipe, t);
-
-                    if (timer && t >= 1) {
-                        window.clearInterval(timer);
-                    } 
-                };
-
-                timer = window.setInterval(each_frame, step);
-            };
-
-            window.setInterval(start_animating, 2000);
-        }
+(function () {
+    var Slideshow = this.Slideshow;
+    
+    new Slideshow({
+        images: [
+            "/img/07.jpg", "/img/08.jpg", "/img/09.jpg", "/img/10.jpg", "/img/11.jpg",
+            "/img/12.jpg", "/img/13.jpg", "/img/14.jpg", "/img/15.jpg", "/img/16.jpg",
+            "/img/17.jpg", "/img/18.jpg", "/img/19.jpg", "/img/20.jpg", "/img/21.jpg",
+            "/img/22.jpg", "/img/23.jpg", "/img/24.jpg", "/img/25.jpg", "/img/26.jpg",
+            "/img/27.jpg", "/img/28.jpg", "/img/29.jpg", "/img/30.jpg", "/img/31.jpg",
+            "/img/32.jpg", "/img/33.jpg", "/img/34.jpg", "/img/35.jpg" ], 
+        width: 304,
+        height: 405,
+        container: document.getElementById('SlideshowWrapper'),
+        transition: 'star'
     });
-};
+}.call(this));

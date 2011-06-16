@@ -21,7 +21,7 @@ getContext = (w, h) ->
 
 handlers = (instance, key) ->
     instance.__handlers__ ?= {}
-    instance.__handlers__[type] ?= []
+    instance.__handlers__[key] ?= []
 
 class Events
     bind: (type, callback) ->
@@ -35,7 +35,7 @@ class Events
             try handler.apply(@, args)
 
 class Loader extends Events
-    initialize: (options) ->
+    constructor: (options) ->
         @options = merge @options, options
         @cache = {}
         @loaded = []
@@ -43,7 +43,6 @@ class Loader extends Events
 
         @bind 'complete', @options.onComplete
         @bind 'progress', @options.onProgress
-
         @loadImages()
 
     cache: null
@@ -64,7 +63,8 @@ class Loader extends Events
             data = ctx.getImageData 0, 0, @width, @height
             loader.onProgress(url, data)
 
-    loadImages: ->
+    loadImages: (images...) ->
+        @waiting.push images...
         @loadImage url for url in @waiting
 
     onProgress: (url, data) ->
@@ -81,9 +81,9 @@ class Loader extends Events
         @trigger 'complete', @cache, @
 
 class Animator extends Events
-    initialize: (options) ->
+    constructor: (options) ->
         @options = merge @options, options
-        @render = @options.render
+        if @options.render then @render = @options.render
         @bind 'cancel', @options.onCancel
         @bind 'update', @options.onUpdate
         @bind 'complete', @options.onComplete
@@ -97,7 +97,8 @@ class Animator extends Events
 
         each_tick = =>
             now = +new Date()
-            n = Math.min 1, @duration / now - @start_time
+            t = (now - @start_time) / @options.duration 
+            n = Math.max 0, Math.min(1, t)
 
             @trigger 'update', @render(n), n, @
 
@@ -113,71 +114,109 @@ class Animator extends Events
     options:
         duration: 1000
         step: 50
-        render: (n) ->
+        render: null
         onComplete: ->
         onUpdate: ->
         onCancel: ->
 
+class TransitionAnimator extends Animator
+    constructor: (options) ->
+        super options
+        @context = @options.context
+
+    start: (left, right) ->
+        @left = left
+        @right = right
+        super()
+
+    render: (t) -> 
+        {width, height} = @context.canvas
+
+        throw new Error() unless @left? and @right? 
+
+        same_width = width is @left.width is @right.width
+        same_height = height is @left.height is @right.height
+
+        unless same_width and same_height
+            throw new Error()
+        
+        destination = @context.createImageData width, height
+        data = destination.data 
+        length = data.length / 4
+        inv_width = 1 / width
+        inv_height = 1 / height
+        filter = @options.transition
+
+        for i in [0..length]
+            y = Math.floor(i * inv_width) * inv_height
+            x = (i % width) * inv_width
+            source = if t is 1 or filter(x, y, t) then @right else @left
+            j = i * 4
+            data[j + 0] = source.data[j + 0]
+            data[j + 1] = source.data[j + 1]
+            data[j + 2] = source.data[j + 2]
+            data[j + 3] = 255
+
+        @context.putImageData destination, 0, 0
+
+    stop: ->
+        @left = @right = null
+        super()
+    
 class Slideshow
-    initialize: (options) ->
+    constructor: (options) ->
         @options = merge @options, options
         @context = getContext @options.width, @options.height
         @element = @context.canvas
         @loader = new Loader
             urls: @options.images
-            onProgress: (url, data) => @onProgress url
-            onComplete: (cache, loader) => @onComplete cache
+            onProgress: (url, data) => @onProgress(url, data)
+
+        @animator = new TransitionAnimator
+            context: @context
+            transition: Slideshow.transitions[@options.transition]
+
+        @options.container.appendChild @element
+
+    onProgress: (url, data) -> 
+        if @loader.loaded.length is 1
+            @context.putImageData data, 0, 0
+            @current = url
+            @start()
+                 
+    start: ->
+        @timer = window.setInterval (=> @showNextSlide()), @options.interval
+
+    stop: ->
+        window.clearInterval @timer
+        @timer = null
+
+    timer: null
+    
+    showNextSlide: -> @showSlide @getNextSlide()
+
+    showSlide: (url) ->
+        prev = @current  
+        cache = @loader.cache
+        @current = url
+
+        @animator.start cache[prev], cache[@current]
+
+    getNextSlide: ->
+        images = @loader.loaded
+        index = images.indexOf @current
+        throw new Error if index is -1  
+        index = (index + 1) % images.length
+        images[index]
 
     options:
-        width: 600,
+        width: 600
         height: 400
-        mask: (x, y, t) ->
-            # x, y and t are all expressed as numbers 0 -> 1
-            _x = 0.5 - x
-            _y = 0.5 - y
+        interval: 4000
+        images: []
+        transition: 'random_vert'
 
-            t > Math.sqrt _x * _x + _y * _y 
+    @transitions:
+        random_vert: (x, y, t) -> t >= (Math.random() + y) / 2
 
-    drawSlide: ->
-        new Animator
-            render: (n) =>
-
-    __render: (n) =>
-        mask = @options.mask
-        source = @next_image
-        bg = @current_image
-        destination = @context.createImageData(@width, @height)
-
-atan = (y, x) ->
-    Math.atan2 y, x + Math.PI
-
-point_height = (x, y) ->
-    tau = Math.PI * 2
-    theta = atan y, x
-    segment = tau / 5
-    offset = theta % segment
-
-    Math.abs -2 * offset + 1
-
-star_wipe = (x, y, t) ->
-    # the star is rendered using two concentric circles 
-    # there are 5 points on the smaller at { 0t, 0.2t, 0.4t, 0.6t, 0.8t }
-    # there are 5 points on the larger at { 0.1t, 0.3t, 0.5t, 0.7t, 0.9t }
-    # the radius of the smaller circle is t
-    # the radius of the larger circle is the radius of the smaller circle * 1.5
-
-    # x, y as distance from the center
-    _x = 0.5 - x
-    _y = 0.5 - y
-
-    inner_radius = t
-    outer_radius = inner_radius * 1.5 
-
-    distance = Math.sqrt _x * _x + _y * _y
-
-    return true  if distance < inner_radius
-    return false if distance > outer_radius
-
-    diff_radius = outer_radius - inner_radius
-
-    return distance <= inner_radius + point_height(_x, _y) * diff_radius
+@Slideshow = Slideshow
