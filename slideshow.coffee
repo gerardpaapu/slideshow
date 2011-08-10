@@ -49,11 +49,11 @@ class Loader extends Events
 
     options:
         urls: []
-        onProgress: (url, data, loader) -> 
+        onProgress: (url, data, loader) ->
         onComplete: (loader) ->
 
     loadImage: (url) ->
-        loader = @ 
+        loader = @
         img = document.createElement('img')
         img.src = url
         img.onload = ->
@@ -97,7 +97,7 @@ class Animator extends Events
 
         each_tick = =>
             now = +new Date()
-            t = (now - @start_time) / @options.duration 
+            t = (now - @start_time) / @options.duration
             n = Math.max 0, Math.min(1, t)
 
             @trigger 'update', @render(n), n, @
@@ -183,7 +183,7 @@ class Slideshow
             @context.putImageData data, 0, 0
             @current = url
             @start()
-                 
+
     start: ->
         @timer = window.setInterval (=> @showNextSlide()), @options.interval
 

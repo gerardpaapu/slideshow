@@ -12,6 +12,6 @@
         width: 304,
         height: 405,
         container: document.getElementById('SlideshowWrapper'),
-        transition: 'what_blinds'
+        transition: 'circle_blinds'
     });
 }.call(this));
